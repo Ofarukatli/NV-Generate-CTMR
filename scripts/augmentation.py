@@ -21,70 +21,54 @@ from .utils import dilate_one_img, erode_one_img
 MAX_COUNT = 1000  # maximum augmentation retries before raising an error
 
 
+def dispatch_morphology(input_tensor, kernel_size, mode='erode'):
+    """
+    Dispatcher for 2D/3D morphological operations using convolutions.
+    Uses reflect padding to avoid boundary artifacts.
+    """
+    rank = len(input_tensor.shape)
+    
+    # Check if we need to add batch/channel dims
+    was_squeezed = False
+    if rank < 4:
+        input_tensor = input_tensor.float().unsqueeze(0).unsqueeze(0)
+        rank = len(input_tensor.shape)
+        was_squeezed = True
+
+    if rank == 4: # [B, C, H, W]
+        dim = 2
+        conv_fn = F.conv2d
+    elif rank == 5: # [B, C, D, H, W]
+        dim = 3
+        conv_fn = F.conv3d
+    else:
+        raise ValueError(f"Unsupported tensor rank {rank}. Expected 4 (2D) or 5 (3D).")
+
+    from .utils import ensure_tuple_rep as ensure_rep
+    kernel_size = ensure_rep(kernel_size, dim)
+    
+    padding = []
+    for k in reversed(kernel_size):
+        padding.extend([k // 2, k // 2])
+    
+    # Pad with reflect to avoid border zero-biases
+    padded = F.pad(input_tensor.float(), tuple(padding), mode='reflect')
+    
+    weights = torch.ones(1, 1, *kernel_size, device=input_tensor.device)
+    output = conv_fn(padded, weights, padding=0)
+    
+    if mode == 'erode':
+        res = torch.where(output == weights.numel(), 1.0, 0.0)
+    else: # dilate
+        res = torch.where(output > 0, 1.0, 0.0)
+        
+    return res.squeeze(0).squeeze(0) if was_squeezed else res
+
 def erode3d(input_tensor, erosion=3):
-    is_2d = len(input_tensor.shape) == 2
-    dim = 2 if is_2d else 3
-    erosion = ensure_tuple_rep(erosion, dim)
+    return dispatch_morphology(input_tensor, erosion, mode='erode')
 
-    # Define the structuring element
-    if is_2d:
-        structuring_element = torch.ones(1, 1, erosion[0], erosion[1]).to(input_tensor.device)
-        input_padded = F.pad(
-            input_tensor.float().unsqueeze(0).unsqueeze(0),
-            (erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
-            mode="constant",
-            value=1.0,
-        )
-        output = F.conv2d(input_padded, structuring_element, padding=0)
-    else:
-        structuring_element = torch.ones(1, 1, erosion[0], erosion[1], erosion[2]).to(input_tensor.device)
-        input_padded = F.pad(
-            input_tensor.float().unsqueeze(0).unsqueeze(0),
-            (erosion[2] // 2, erosion[2] // 2, erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
-            mode="constant",
-            value=1.0,
-        )
-        output = F.conv3d(input_padded, structuring_element, padding=0)
-
-    # Set output values based on the minimum value within the structuring element
-    output = torch.where(output == torch.sum(structuring_element), 1.0, 0.0)
-
-    return output.squeeze(0).squeeze(0)
-
-
-
-def dilate3d(input_tensor, erosion=3):
-    is_2d = len(input_tensor.shape) == 2
-    dim = 2 if is_2d else 3
-    erosion = ensure_tuple_rep(erosion, dim)
-
-    # Define the structuring element
-    if is_2d:
-        structuring_element = torch.ones(1, 1, erosion[0], erosion[1]).to(input_tensor.device)
-        input_padded = F.pad(
-            input_tensor.float().unsqueeze(0).unsqueeze(0),
-            (erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
-            mode="constant",
-            value=1.0,
-        )
-        output = F.conv2d(input_padded, structuring_element, padding=0)
-    else:
-        structuring_element = torch.ones(1, 1, erosion[0], erosion[1], erosion[2]).to(input_tensor.device)
-        input_padded = F.pad(
-            input_tensor.float().unsqueeze(0).unsqueeze(0),
-            (erosion[2] // 2, erosion[2] // 2, erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
-            mode="constant",
-            value=1.0,
-        )
-        output = F.conv3d(input_padded, structuring_element, padding=0)
-
-    # Set output values based on the minimum value within the structuring element
-    output = torch.where(output > 0, 1.0, 0.0)
-
-    return output.squeeze(0).squeeze(0)
-
-
-
+def dilate3d(input_tensor, dilation=3):
+    return dispatch_morphology(input_tensor, dilation, mode='dilate')
 def augmentation_tumor_bone(pt_nda, output_size, random_seed=None):
     volume = pt_nda.squeeze(0)
     real_l_volume_ = torch.zeros_like(volume)

@@ -55,12 +55,14 @@
         ],
         "num_res_blocks": 2,
         "use_flash_attention": true,
-        "include_top_region_index_input": "@include_body_region",
-        "include_bottom_region_index_input": "@include_body_region",
-        "include_spacing_input": true,
+        "include_top_region_index_input": false,
+        "include_bottom_region_index_input": false,
+        "include_spacing_input": false,
         "num_class_embeds": 128,
         "resblock_updown": true,
-        "include_fc": true
+        "include_fc": true,
+        "with_conditioning": false,
+        "prediction_type": "v_prediction"
     },
     "controlnet_def": {
         "_target_": "monai.apps.generation.maisi.networks.controlnet_maisi.ControlNetMaisi",

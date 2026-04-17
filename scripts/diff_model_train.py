@@ -262,33 +262,31 @@ def train_one_epoch(
     loss_torch = torch.zeros(2, dtype=torch.float, device=device)
 
     unet.train()
+    
+    # Load stats from JSON if available
+    with open(args.json_data_list) as f:
+        meta = json.load(f)
+        stats = meta.get("stats", {})
+    
+    t2_p1, t2_p99 = stats.get("image_data_p1", 0.0), stats.get("image_data_p99", 1000.0)
+    t1_p1, t1_p99 = stats.get("label_data_p1", 0.0), stats.get("label_data_p99", 1000.0)
+
     for train_data in train_loader:
         current_lr = optimizer.param_groups[0]["lr"]
 
         _iter += 1
         images = train_data["image"].to(device)
-        images = train_data["image"].to(device)
-        images = images * scale_factor
+        # Percentile Normalization (to 0-1)
+        images = (images - t2_p1) / (t2_p99 - t2_p1 + 1e-8)
+        images = torch.clamp(images, 0, 1) * scale_factor
         
         # Load condition label (e.g. T1 MRI mapping)
         cond_image = train_data.get("label")
         if cond_image is not None:
-            cond_image = cond_image.to(device) * scale_factor
-        if include_body_region:
-            top_region_index_tensor = train_data["top_region_index"].to(device)
-            bottom_region_index_tensor = train_data["bottom_region_index"].to(device)
-            # Pad 1-element indices to 4-elements for MAISI layers (1x1 -> 1x4)
-            if top_region_index_tensor.shape[1] == 1:
-                top_region_index_tensor = torch.cat([top_region_index_tensor, torch.zeros((top_region_index_tensor.shape[0], 3), device=device)], dim=1)
-                bottom_region_index_tensor = torch.cat([bottom_region_index_tensor, torch.zeros((bottom_region_index_tensor.shape[0], 3), device=device)], dim=1)
-        if include_modality:
-            modality_tensor = train_data["modality"].to(device)
-            modality_tensor = augment_modality_label(modality_tensor).to(device)
-
-        spacing_tensor = train_data["spacing"].to(device)
-        # Pad 2D spacing to 3D to match MAISI linear layer weights (1x2 -> 1x3)
-        if spacing_tensor.shape[1] == 2:
-            spacing_tensor = torch.cat([spacing_tensor, torch.zeros((spacing_tensor.shape[0], 1), device=device)], dim=1)
+            cond_image = cond_image.to(device)
+            # Percentile Normalization (to 0-1)
+            cond_image = (cond_image - t1_p1) / (t1_p99 - t1_p1 + 1e-8)
+            cond_image = torch.clamp(cond_image, 0, 1) * scale_factor
 
         optimizer.zero_grad(set_to_none=True)
 
@@ -329,22 +327,10 @@ def train_one_epoch(
             unet_inputs = {
                 "x": unet_x,
                 "timesteps": timesteps,
-                "spacing_tensor": spacing_tensor,
             }
-            # Add extra arguments if include_body_region is True
-            if include_body_region:
-                unet_inputs.update(
-                    {
-                        "top_region_index_tensor": top_region_index_tensor,
-                        "bottom_region_index_tensor": bottom_region_index_tensor,
-                    }
-                )
             if include_modality:
-                unet_inputs.update(
-                    {
-                        "class_labels": modality_tensor,
-                    }
-                )
+                unet_inputs.update({"class_labels": modality_tensor})
+            
             model_output = unet(**unet_inputs)
 
             loss = loss_pt(model_output.float(), model_gt.float())

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import nibabel as nib
 import numpy as np
+from tqdm import tqdm
 
 
 def save_nifti(data: np.ndarray, filename: str):
@@ -18,6 +19,23 @@ def save_nifti(data: np.ndarray, filename: str):
     affine = np.eye(4)
     nii_img = nib.Nifti1Image(arr.T, affine)  # transpose so H, W is W, H
     nib.save(nii_img, filename)
+
+def calculate_percentiles(samples, keys, p=[1, 99]):
+    print(f"Calculating percentiles {p} for {keys}...")
+    values = {k: [] for k in keys}
+    
+    for sample in tqdm(samples):
+        for k in keys:
+            data = sample[k]
+            # Use random subsample if image is huge, but for 256x256 we can take all
+            values[k].extend(data.flatten().tolist())
+            
+    results = {}
+    for k in keys:
+        res = np.percentile(values[k], p)
+        results[f"{k}_p{p[0]}"] = float(res[0])
+        results[f"{k}_p{p[1]}"] = float(res[1])
+    return results
 
 def process_pkl(args):
     out_dir = Path(args.out_dir)
@@ -43,6 +61,18 @@ def process_pkl(args):
         "test": 2
     }
 
+    # Step 1: Calculate Global Percentiles
+    all_samples = []
+    for split in ["train", "valid", "test"]:
+        if split in dataset:
+            for s in dataset[split]:
+                all_samples.append({"image_data": s["image"], "label_data": s["mask"]})
+                
+    stats = calculate_percentiles(all_samples, ["image_data", "label_data"])
+    
+    # Step 2: Save NIfTI and Build Main JSON
+    json_data = {"training": [], "stats": stats}
+    
     for split_name, fold_id in split_to_fold.items():
         if split_name not in dataset:
             continue
@@ -53,6 +83,9 @@ def process_pkl(args):
         for idx, sample in enumerate(samples):
             target_img = sample["image"]
             cond_img = sample["mask"]
+            
+            if target_img.shape != cond_img.shape:
+                raise ValueError(f"Shape mismatch at {split_name}_{idx}: Image {target_img.shape} != Label {cond_img.shape}")
             
             _, h, w = target_img.shape
             
