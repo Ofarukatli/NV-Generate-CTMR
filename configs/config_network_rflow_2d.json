@@ -1,7 +1,7 @@
 {
     "spatial_dims": 2,
     "image_channels": 1,
-    "latent_channels": 4,
+    "latent_channels": 1,
     "include_body_region": false,
     "mask_generation_latent_shape": [
         4,
@@ -38,8 +38,8 @@
     "diffusion_unet_def": {
         "_target_": "monai.apps.generation.maisi.networks.diffusion_model_unet_maisi.DiffusionModelUNetMaisi",
         "spatial_dims": "@spatial_dims",
-        "in_channels": "@latent_channels",
-        "out_channels": "@latent_channels",
+        "in_channels": 2,
+        "out_channels": 1,
         "num_channels": [64, 128, 256, 512],
         "attention_levels": [
             false,

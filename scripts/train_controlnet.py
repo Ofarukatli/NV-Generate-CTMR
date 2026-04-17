@@ -304,8 +304,8 @@ def train_controlnet(env_config_path: str, model_config_path: str, model_def_pat
         logger.info(f"Load trained diffusion model from {args.trained_diffusion_path}.")
         logger.info(f"loaded scale_factor from diffusion model ckpt -> {scale_factor}.")
     else:
-        raise ValueError(f"'trained_diffusion_path' in {env_config_path} cannot be null.")
-
+        logger.info("No trained_diffusion_path provided. Training from scratch.")
+        scale_factor = 1.0
     # define ControlNet
     controlnet = define_instance(args, "controlnet_def").to(device)
     # copy weights from the DM to the controlnet

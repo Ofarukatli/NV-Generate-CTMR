@@ -78,8 +78,7 @@ def load_filenames(data_list_path: str) -> list:
     """
     with open(data_list_path) as file:
         json_data = json.load(file)
-    filenames_train = json_data["training"]
-    return [_item["image"].replace(".nii.gz", "_emb.nii.gz") for _item in filenames_train]
+    return json_data["training"]
 
 
 def prepare_data(
@@ -107,29 +106,18 @@ def prepare_data(
         DataLoader: Data loader for training.
     """
 
-    def _load_data_from_file(file_path, key, convert_to_float=True):
-        with open(file_path) as f:
-            if convert_to_float:
-                return torch.FloatTensor(json.load(f)[key])
-            else:
-                return json.load(f)[key]
-
     train_transforms_list = [
-        monai.transforms.LoadImaged(keys=["image"]),
-        monai.transforms.EnsureChannelFirstd(keys=["image"]),
-        monai.transforms.Lambdad(keys="spacing", func=lambda x: _load_data_from_file(x, "spacing")),
-        monai.transforms.Lambdad(keys="spacing", func=lambda x: x * 1e2),
+        monai.transforms.LoadImaged(keys=["image", "label"]),
+        monai.transforms.EnsureChannelFirstd(keys=["image", "label"]),
+        monai.transforms.Lambdad(keys="spacing", func=lambda x: torch.FloatTensor(x) * 1e2),
     ]
     if include_body_region:
         train_transforms_list += [
-            monai.transforms.Lambdad(keys="top_region_index", func=lambda x: _load_data_from_file(x, "top_region_index")),
-            monai.transforms.Lambdad(keys="bottom_region_index", func=lambda x: _load_data_from_file(x, "bottom_region_index")),
-            monai.transforms.Lambdad(keys="top_region_index", func=lambda x: x * 1e2),
-            monai.transforms.Lambdad(keys="bottom_region_index", func=lambda x: x * 1e2),
+            monai.transforms.Lambdad(keys=["top_region_index", "bottom_region_index"], func=lambda x: torch.FloatTensor([x]) * 1e2),
         ]
     if include_modality:
         train_transforms_list += [
-            monai.transforms.Lambdad(keys="modality", func=lambda x: modality_mapping[_load_data_from_file(x, "modality", False)]),
+            monai.transforms.Lambdad(keys="modality", func=lambda x: modality_mapping[str(x)]),
             monai.transforms.EnsureTyped(keys=["modality"], dtype=torch.long),
         ]
     train_transforms = Compose(train_transforms_list)
@@ -279,8 +267,13 @@ def train_one_epoch(
 
         _iter += 1
         images = train_data["image"].to(device)
+        images = train_data["image"].to(device)
         images = images * scale_factor
-
+        
+        # Load condition label (e.g. T1 MRI mapping)
+        cond_image = train_data.get("label")
+        if cond_image is not None:
+            cond_image = cond_image.to(device) * scale_factor
         if include_body_region:
             top_region_index_tensor = train_data["top_region_index"].to(device)
             bottom_region_index_tensor = train_data["bottom_region_index"].to(device)
@@ -303,8 +296,12 @@ def train_one_epoch(
             noisy_latent = noise_scheduler.add_noise(original_samples=images, noise=noise, timesteps=timesteps)
 
             # Create a dictionary to store the inputs
+            unet_x = noisy_latent
+            if cond_image is not None:
+                unet_x = torch.cat([noisy_latent, cond_image], dim=1)
+
             unet_inputs = {
-                "x": noisy_latent,
+                "x": unet_x,
                 "timesteps": timesteps,
                 "spacing_tensor": spacing_tensor,
             }
@@ -442,18 +439,18 @@ def diff_model_train(env_config_path: str, model_config_path: str, model_def_pat
         logger.info(f"num_files_train: {len(filenames_train)}")
 
     train_files = []
-    for _i in range(len(filenames_train)):
-        str_img = os.path.join(args.embedding_base_dir, filenames_train[_i])
+    for item in filenames_train:
+        str_img = os.path.join(args.data_base_dir, item["image"])
+        str_lbl = os.path.join(args.data_base_dir, item["label"])
         if not os.path.exists(str_img):
             continue
 
-        str_info = os.path.join(args.embedding_base_dir, filenames_train[_i]) + ".json"
-        train_files_i = {"image": str_img, "spacing": str_info}
+        train_files_i = {"image": str_img, "label": str_lbl, "spacing": item["spacing"]}
         if include_body_region:
-            train_files_i["top_region_index"] = str_info
-            train_files_i["bottom_region_index"] = str_info
+            train_files_i["top_region_index"] = item.get("top_region_index", [0.0])[0] # scalar fallback
+            train_files_i["bottom_region_index"] = item.get("bottom_region_index", [1.0])[0]
         if include_modality:
-            train_files_i["modality"] = str_info
+            train_files_i["modality"] = item.get("modality", 9)
         train_files.append(train_files_i)
     if dist.is_initialized():
         train_files = partition_dataset(data=train_files, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True)[local_rank]
