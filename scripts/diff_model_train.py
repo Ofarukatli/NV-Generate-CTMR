@@ -109,15 +109,15 @@ def prepare_data(
     train_transforms_list = [
         monai.transforms.LoadImaged(keys=["image", "label"]),
         monai.transforms.EnsureChannelFirstd(keys=["image", "label"]),
-        monai.transforms.Lambdad(keys="spacing", func=lambda x: torch.FloatTensor(x) * 1e2),
+        monai.transforms.Lambdad(keys="spacing", func=lambda x: torch.as_tensor(x, dtype=torch.float32) * 1e2),
     ]
     if include_body_region:
         train_transforms_list += [
-            monai.transforms.Lambdad(keys=["top_region_index", "bottom_region_index"], func=lambda x: torch.FloatTensor([x]) * 1e2),
+            monai.transforms.Lambdad(keys=["top_region_index", "bottom_region_index"], func=lambda x: torch.as_tensor([x], dtype=torch.float32) * 1e2),
         ]
     if include_modality:
         train_transforms_list += [
-            monai.transforms.Lambdad(keys="modality", func=lambda x: modality_mapping[str(x)]),
+            monai.transforms.Lambdad(keys="modality", func=lambda x: modality_mapping.get(x, x) if isinstance(x, str) else x),
             monai.transforms.EnsureTyped(keys=["modality"], dtype=torch.long),
         ]
     train_transforms = Compose(train_transforms_list)
