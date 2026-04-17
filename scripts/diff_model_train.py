@@ -212,12 +212,13 @@ def create_lr_scheduler(optimizer: torch.optim.Optimizer, total_steps: int) -> t
 
 
 def train_one_epoch(
+    args,
     epoch: int,
     unet: torch.nn.Module,
     train_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.PolynomialLR,
-    loss_pt: torch.nn.L1Loss,
+    loss_pt: torch.nn.MSELoss,
     scaler: GradScaler,
     scale_factor: torch.Tensor,
     noise_scheduler: torch.nn.Module,
@@ -474,6 +475,7 @@ def diff_model_train(env_config_path: str, model_config_path: str, model_def_pat
 
     for epoch in range(args.diffusion_unet_train["n_epochs"]):
         loss_torch = train_one_epoch(
+            args,
             epoch,
             unet,
             train_loader,
