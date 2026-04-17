@@ -264,7 +264,11 @@ def ldm_conditional_sample_one_image(
             )
             combine_label = torch.nn.functional.interpolate(combine_label, size=output_size, mode="nearest")
 
-        controlnet_cond_vis = binarize_labels(combine_label.as_tensor().long()).half()
+        cond_channels = getattr(controlnet, "conditioning_embedding_in_channels", getattr(getattr(controlnet, "module", None), "conditioning_embedding_in_channels", 8))
+        if cond_channels == 1:
+            controlnet_cond_vis = combine_label.half()
+        else:
+            controlnet_cond_vis = binarize_labels(combine_label.as_tensor().long()).half()
 
         # Generate random noise
         latents = initialize_noise_latents(latent_shape, device) * noise_factor

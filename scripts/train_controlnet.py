@@ -175,6 +175,8 @@ def compute_model_output(
         return_controlnet_blocks (bool, optional):
             If True, also return `(down_block_res_samples, mid_block_res_sample)`.
             Defaults to False.
+        cond_channels (int, optional):
+            Number of channels for the condition. If 1, bypasses binary mask expansion.
 
     Returns:
         Tuple[torch.Tensor, Optional[Any], Optional[Any]]:
@@ -186,8 +188,11 @@ def compute_model_output(
     include_modality = modality_tensor is not None
     include_body_region = (top_region_index_tensor is not None) and (bottom_region_index_tensor is not None)
 
-    # use binary encoding to encode segmentation mask
-    controlnet_cond = binarize_labels(labels.as_tensor().to(torch.long)).float()
+    # use binary encoding to encode segmentation mask or keep continuous logic
+    if cond_channels == 1:
+        controlnet_cond = labels.as_tensor().float()
+    else:
+        controlnet_cond = binarize_labels(labels.as_tensor().to(torch.long)).float()
 
     # create noisy latent
     noisy_latent = noise_scheduler.add_noise(original_samples=images, noise=noise, timesteps=timesteps)
@@ -413,6 +418,7 @@ def train_controlnet(env_config_path: str, model_config_path: str, model_def_pat
                     top_region_index_tensor,
                     bottom_region_index_tensor,
                     return_controlnet_blocks=False,
+                    cond_channels=args.controlnet_def.get("conditioning_embedding_in_channels", 8),
                 )
                 if args.use_region_contrasive_loss:
                     (
@@ -432,6 +438,7 @@ def train_controlnet(env_config_path: str, model_config_path: str, model_def_pat
                         top_region_index_tensor,
                         bottom_region_index_tensor,
                         return_controlnet_blocks=False,
+                        cond_channels=args.controlnet_def.get("conditioning_embedding_in_channels", 8),
                     )
 
                 if isinstance(noise_scheduler, RFlowScheduler):
@@ -458,7 +465,8 @@ def train_controlnet(env_config_path: str, model_config_path: str, model_def_pat
                     # assign larger weights for ROI (tumor)
                     for label in weighted_loss_label:
                         roi[interpolate_label == label] = 1
-                    weights[roi.repeat(1, images.shape[1], 1, 1, 1) == 1] = weighted_loss
+                    repeat_dims = [1, images.shape[1]] + [1] * (len(images.shape) - 2)
+                    weights[roi.repeat(*repeat_dims) == 1] = weighted_loss
                     loss = (F.l1_loss(model_output.float(), model_gt.float(), reduction="none") * weights).mean()
                 else:
                     loss = F.l1_loss(model_output.float(), model_gt.float())
