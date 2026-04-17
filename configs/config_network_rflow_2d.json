@@ -60,9 +60,7 @@
         "include_spacing_input": false,
         "num_class_embeds": 128,
         "resblock_updown": true,
-        "include_fc": true,
-        "with_conditioning": false,
-        "prediction_type": "v_prediction"
+        "include_fc": true
     },
     "controlnet_def": {
         "_target_": "monai.apps.generation.maisi.networks.controlnet_maisi.ControlNetMaisi",
