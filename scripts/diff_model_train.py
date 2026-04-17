@@ -296,11 +296,30 @@ def train_one_epoch(
             noise = torch.randn_like(images)
 
             if isinstance(noise_scheduler, RFlowScheduler):
-                timesteps = noise_scheduler.sample_timesteps(images)
+                # Explicit Rectified Flow formulation: t ~ U(0,1)
+                t = torch.rand((images.shape[0],), device=images.device)
+                timesteps = t * 1000.0 # Scale to embedding range [0, 1000]
+                
+                # Expand t for broadcasting [B] -> [B, 1, 1, 1]
+                t_expanded = t.view(-1, 1, 1, 1)
+                
+                # x_t = (1 - t) * noise + t * t2_clean
+                noisy_latent = (1.0 - t_expanded) * noise + t_expanded * images
+                
+                # velocity_target = t2_clean - noise
+                model_gt = images - noise
             else:
                 timesteps = torch.randint(0, num_train_timesteps, (images.shape[0],), device=images.device).long()
-
-            noisy_latent = noise_scheduler.add_noise(original_samples=images, noise=noise, timesteps=timesteps)
+                noisy_latent = noise_scheduler.add_noise(original_samples=images, noise=noise, timesteps=timesteps)
+                
+                if noise_scheduler.prediction_type == DDPMPredictionType.EPSILON:
+                    model_gt = noise
+                elif noise_scheduler.prediction_type == DDPMPredictionType.SAMPLE:
+                    model_gt = images
+                elif noise_scheduler.prediction_type == DDPMPredictionType.V_PREDICTION:
+                    model_gt = noise_scheduler.get_velocity(images, noise, timesteps)
+                else:
+                    raise ValueError(f"Unsupported prediction type: {noise_scheduler.prediction_type}")
 
             # Create a dictionary to store the inputs
             unet_x = noisy_latent
@@ -327,22 +346,6 @@ def train_one_epoch(
                     }
                 )
             model_output = unet(**unet_inputs)
-
-            if isinstance(noise_scheduler, RFlowScheduler):
-                # Rectified flow: velocity target along the linear path (not DDPM prediction_type).
-                model_gt = images - noise
-            elif noise_scheduler.prediction_type == DDPMPredictionType.EPSILON:
-                model_gt = noise
-            elif noise_scheduler.prediction_type == DDPMPredictionType.SAMPLE:
-                model_gt = images
-            elif noise_scheduler.prediction_type == DDPMPredictionType.V_PREDICTION:
-                # DDPM v-objective (RFlow uses prediction_type v too but is handled above)
-                model_gt = noise_scheduler.get_velocity(images, noise, timesteps)
-            else:
-                raise ValueError(
-                    "noise scheduler prediction type has to be chosen from ",
-                    f"[{DDPMPredictionType.EPSILON},{DDPMPredictionType.SAMPLE},{DDPMPredictionType.V_PREDICTION}]",
-                )
 
             loss = loss_pt(model_output.float(), model_gt.float())
 
@@ -477,7 +480,7 @@ def diff_model_train(env_config_path: str, model_config_path: str, model_def_pat
 
     total_steps = (args.diffusion_unet_train["n_epochs"] * len(train_loader.dataset)) / args.diffusion_unet_train["batch_size"]
     lr_scheduler = create_lr_scheduler(optimizer, total_steps)
-    loss_pt = torch.nn.L1Loss()
+    loss_pt = torch.nn.MSELoss()
     scaler = GradScaler("cuda")
 
     torch.set_float32_matmul_precision("highest")
