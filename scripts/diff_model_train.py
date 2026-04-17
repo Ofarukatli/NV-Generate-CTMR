@@ -289,6 +289,10 @@ def train_one_epoch(
             cond_image = (cond_image - t1_p1) / (t1_p99 - t1_p1 + 1e-8)
             cond_image = torch.clamp(cond_image, 0, 1) * scale_factor
 
+        if include_modality:
+            modality_tensor = train_data["modality"].to(device)
+            modality_tensor = augment_modality_label(modality_tensor).to(device)
+
         optimizer.zero_grad(set_to_none=True)
 
         with autocast("cuda", enabled=amp):
