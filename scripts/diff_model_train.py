@@ -277,11 +277,18 @@ def train_one_epoch(
         if include_body_region:
             top_region_index_tensor = train_data["top_region_index"].to(device)
             bottom_region_index_tensor = train_data["bottom_region_index"].to(device)
+            # Pad 1-element indices to 4-elements for MAISI layers (1x1 -> 1x4)
+            if top_region_index_tensor.shape[1] == 1:
+                top_region_index_tensor = torch.cat([top_region_index_tensor, torch.zeros((top_region_index_tensor.shape[0], 3), device=device)], dim=1)
+                bottom_region_index_tensor = torch.cat([bottom_region_index_tensor, torch.zeros((bottom_region_index_tensor.shape[0], 3), device=device)], dim=1)
         if include_modality:
             modality_tensor = train_data["modality"].to(device)
             modality_tensor = augment_modality_label(modality_tensor).to(device)
 
         spacing_tensor = train_data["spacing"].to(device)
+        # Pad 2D spacing to 3D to match MAISI linear layer weights (1x2 -> 1x3)
+        if spacing_tensor.shape[1] == 2:
+            spacing_tensor = torch.cat([spacing_tensor, torch.zeros((spacing_tensor.shape[0], 1), device=device)], dim=1)
 
         optimizer.zero_grad(set_to_none=True)
 

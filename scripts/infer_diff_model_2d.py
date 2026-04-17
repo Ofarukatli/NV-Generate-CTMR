@@ -62,8 +62,14 @@ def infer(args):
         noise = torch.randn_like(cond_tensor).to(device)
         
         spacing = torch.FloatTensor(item.get("spacing", [1.0, 1.0])).unsqueeze(0).to(device) * 1e2
+        if spacing.shape[1] == 2:
+            spacing = torch.cat([spacing, torch.zeros((1, 1), device=device)], dim=1)
+
         top_idx = torch.FloatTensor([item.get("top_region_index", [0.0])[0]]).unsqueeze(0).to(device) * 1e2
         bot_idx = torch.FloatTensor([item.get("bottom_region_index", [1.0])[0]]).unsqueeze(0).to(device) * 1e2
+        if top_idx.shape[1] == 1:
+            top_idx = torch.cat([top_idx, torch.zeros((1, 3), device=device)], dim=1)
+            bot_idx = torch.cat([bot_idx, torch.zeros((1, 3), device=device)], dim=1)
         modality = torch.full((1,), item.get("modality", 9), dtype=torch.long).to(device)
         
         unet_inputs = {
