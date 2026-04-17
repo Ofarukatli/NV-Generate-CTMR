@@ -116,8 +116,9 @@ def infer_controlnet(env_config_path: str, model_config_path: str, model_def_pat
         modality_tensor = args.controlnet_infer["modality"] * torch.ones((len(labels),), dtype=torch.long).to(device)
         # get target dimension
         dim = batch["dim"]
-        output_size = (dim[0].item(), dim[1].item(), dim[2].item())
-        latent_shape = (args.latent_channels, output_size[0] // 4, output_size[1] // 4, output_size[2] // 4)
+        spatial_dims = len(dim)
+        output_size = tuple(dim[i].item() for i in range(spatial_dims))
+        latent_shape = (args.latent_channels, *[os // 4 for os in output_size])
 
         # generate a single synthetic image using a latent diffusion model with controlnet.
         synthetic_images, _ = ldm_conditional_sample_one_image(

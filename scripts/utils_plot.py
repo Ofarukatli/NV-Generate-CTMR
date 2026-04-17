@@ -67,7 +67,7 @@ def visualize_one_slice_in_3d(image, axis: int = 2, center=None, mask_bool=True,
     Extract and visualize a 2D slice from a 3D image or label tensor.
 
     Args:
-        image (torch.Tensor): Input 3D image or label tensor. Expected shape: [1, H, W, D].
+        image (torch.Tensor): Input 3D image or label tensor. Expected shape: [1, H, W, D] or [1, H, W].
         axis (int, optional): Axis along which to extract the slice (0, 1, or 2). Defaults to 2.
         center (int, optional): Index of the slice to extract. If None, the middle slice is used.
         mask_bool (bool, optional): If True, treat the input as a label mask and normalize it. Defaults to True.
@@ -83,22 +83,27 @@ def visualize_one_slice_in_3d(image, axis: int = 2, center=None, mask_bool=True,
         ValueError: If the specified axis is not 0, 1, or 2.
     """
     # draw image
-    if center is None:
-        center = image.shape[2:][axis] // 2
-    if axis == 0:
-        draw_img = image[..., center, :, :]
-    elif axis == 1:
-        draw_img = image[..., :, center, :]
-    elif axis == 2:
-        draw_img = image[..., :, :, center]
+    is_2d = len(image.shape) == 3
+    if is_2d:
+        draw_img = image
     else:
-        raise ValueError("axis should be in [0,1,2]")
+        if center is None:
+            center = image.shape[2:][axis] // 2
+        if axis == 0:
+            draw_img = image[..., center, :, :]
+        elif axis == 1:
+            draw_img = image[..., :, center, :]
+        elif axis == 2:
+            draw_img = image[..., :, :, center]
+        else:
+            raise ValueError("axis should be in [0,1,2]")
     if mask_bool:
         draw_img = normalize_label_to_uint8(colorize, draw_img, n_label)
     else:
         draw_img = draw_img.squeeze().cpu().numpy().astype(np.float32)
         draw_img = np.stack((draw_img,) * 3, axis=-1)
     return draw_img
+
 
 
 def show_image(image, title="mask"):

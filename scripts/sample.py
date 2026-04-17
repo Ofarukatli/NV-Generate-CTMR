@@ -253,7 +253,12 @@ def ldm_conditional_sample_one_image(
         start_time = time.time()
         # generate segmentation mask
         combine_label = combine_label_or.to(device)
-        if output_size[0] != combine_label.shape[2] or output_size[1] != combine_label.shape[3] or output_size[2] != combine_label.shape[4]:
+        is_2d = len(output_size) == 2
+        if is_2d:
+            size_mismatch = (output_size[0] != combine_label.shape[2] or output_size[1] != combine_label.shape[3])
+        else:
+            size_mismatch = (output_size[0] != combine_label.shape[2] or output_size[1] != combine_label.shape[3] or output_size[2] != combine_label.shape[4])
+        if size_mismatch:
             logging.info(
                 "output_size is not a desired value. Need to interpolate the mask to match with output_size. The result image will be very low quality."
             )
@@ -474,15 +479,17 @@ def check_input_ct(
     # check output_size and spacing format
     if output_size[0] != output_size[1]:
         raise ValueError(f"The first two components of output_size need to be equal, yet got {output_size}.")
-    if (output_size[0] not in [256, 384, 512]) or (output_size[2] not in [128, 256, 384, 512, 640, 768]):
-        raise ValueError(
-            f"The output_size[0] have to be chosen from [256, 384, 512], and output_size[2] have to be chosen from [128, 256, 384, 512, 640, 768], yet got {output_size}."
-        )
+    if len(output_size) == 3:
+        if (output_size[0] not in [256, 384, 512]) or (output_size[2] not in [128, 256, 384, 512, 640, 768]):
+            raise ValueError(
+                f"The output_size[0] have to be chosen from [256, 384, 512], and output_size[2] have to be chosen from [128, 256, 384, 512, 640, 768], yet got {output_size}."
+            )
 
     if spacing[0] != spacing[1]:
         raise ValueError(f"The first two components of spacing need to be equal, yet got {spacing}.")
-    if spacing[0] < 0.5 or spacing[0] > 3.0 or spacing[2] < 0.5 or spacing[2] > 5.0:
-        raise ValueError(f"spacing[0] have to be between 0.5 and 3.0 mm, spacing[2] have to be between 0.5 and 5.0 mm, yet got {spacing}.")
+    if len(spacing) == 3:
+        if spacing[0] < 0.5 or spacing[0] > 3.0 or spacing[2] < 0.5 or spacing[2] > 5.0:
+            raise ValueError(f"spacing[0] have to be between 0.5 and 3.0 mm, spacing[2] have to be between 0.5 and 5.0 mm, yet got {spacing}.")
 
     if output_size[0] * spacing[0] < 256:
         FOV = [output_size[axis] * spacing[axis] for axis in range(3)]  # noqa: N806
@@ -591,26 +598,27 @@ def check_input_mr(
         ValueError: If any input parameter is invalid.
     """
     # check output_size and spacing format
-    if output_size[0] != output_size[1] and output_size[0] != output_size[2] and output_size[2] != output_size[1]:
-        raise ValueError(f"At least two components of output_size need to be equal, yet got {output_size}.")
-    if output_size[2] == 128:
-        if output_size[0] != output_size[1]:
-            raise ValueError(f"Two first components of output_size need to be equal when the third size is 128, yet got {output_size}.")
-        if output_size[0] not in [128, 256, 384, 512]:
-            raise ValueError(f"The output_size[0] have to be chosen from [128, 256, 384, 512] when output_size[2]=128, yet got {output_size}.")
-    elif output_size[2] == 256:
-        if (
-            (output_size[0] == 128 and output_size[1] == 256)
-            or (output_size[0] == 256 and output_size[1] == 128)
-            or (output_size[0] == 256 and output_size[1] == 256)
-        ):
-            pass
+    if len(output_size) == 3:
+        if output_size[0] != output_size[1] and output_size[0] != output_size[2] and output_size[2] != output_size[1]:
+            raise ValueError(f"At least two components of output_size need to be equal, yet got {output_size}.")
+        if output_size[2] == 128:
+            if output_size[0] != output_size[1]:
+                raise ValueError(f"Two first components of output_size need to be equal when the third size is 128, yet got {output_size}.")
+            if output_size[0] not in [128, 256, 384, 512]:
+                raise ValueError(f"The output_size[0] have to be chosen from [128, 256, 384, 512] when output_size[2]=128, yet got {output_size}.")
+        elif output_size[2] == 256:
+            if (
+                (output_size[0] == 128 and output_size[1] == 256)
+                or (output_size[0] == 256 and output_size[1] == 128)
+                or (output_size[0] == 256 and output_size[1] == 256)
+            ):
+                pass
+            else:
+                raise ValueError(
+                    f"The output_size can only be [128,256,256] or [256,128,256], or [256,256,256] when output_size[2]=256, yet got {output_size}."
+                )
         else:
-            raise ValueError(
-                f"The output_size can only be [128,256,256] or [256,128,256], or [256,256,256] when output_size[2]=256, yet got {output_size}."
-            )
-    else:
-        raise ValueError(f"The output_size[2] have to be chosen from [128, 256], yet got {output_size}.")
+            raise ValueError(f"The output_size[2] have to be chosen from [128, 256], yet got {output_size}.")
 
     if any(spacing) < 0.4 or any(spacing) > 5.0:
         raise ValueError(f"spacing have to be between 0.4 and 5.0 mm, yet got {spacing}.")

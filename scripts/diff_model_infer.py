@@ -140,9 +140,7 @@ def run_inference(
         (
             1,
             args.latent_channels,
-            output_size[0] // divisor,
-            output_size[1] // divisor,
-            output_size[2] // divisor,
+            *[os // divisor for os in output_size]
         ),
         device=device,
     )
@@ -325,7 +323,9 @@ def diff_model_infer(env_config_path: str, model_config_path: str, model_def_pat
     )
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    output_path = f"{args.output_dir}/{output_prefix}_seed{random_seed}_size{output_size[0]:d}x{output_size[1]:d}x{output_size[2]:d}_spacing{out_spacing[0]:.2f}x{out_spacing[1]:.2f}x{out_spacing[2]:.2f}_{timestamp}_rank{local_rank}_modality{modality}.nii.gz"
+    size_str = "x".join(f"{s:d}" for s in output_size)
+    spacing_str = "x".join(f"{s:.2f}" for s in out_spacing)
+    output_path = f"{args.output_dir}/{output_prefix}_seed{random_seed}_size{size_str}_spacing{spacing_str}_{timestamp}_rank{local_rank}_modality{modality}.nii.gz"
     save_image(data, output_size, out_spacing, output_path, logger)
 
     # ---- gather & persist ----

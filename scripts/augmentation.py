@@ -22,20 +22,29 @@ MAX_COUNT = 1000  # maximum augmentation retries before raising an error
 
 
 def erode3d(input_tensor, erosion=3):
+    is_2d = len(input_tensor.shape) == 2
+    dim = 2 if is_2d else 3
+    erosion = ensure_tuple_rep(erosion, dim)
+
     # Define the structuring element
-    erosion = ensure_tuple_rep(erosion, 3)
-    structuring_element = torch.ones(1, 1, erosion[0], erosion[1], erosion[2]).to(input_tensor.device)
-
-    # Pad the input tensor to handle border pixels
-    input_padded = F.pad(
-        input_tensor.float().unsqueeze(0).unsqueeze(0),
-        (erosion[0] // 2, erosion[0] // 2, erosion[1] // 2, erosion[1] // 2, erosion[2] // 2, erosion[2] // 2),
-        mode="constant",
-        value=1.0,
-    )
-
-    # Apply erosion operation
-    output = F.conv3d(input_padded, structuring_element, padding=0)
+    if is_2d:
+        structuring_element = torch.ones(1, 1, erosion[0], erosion[1]).to(input_tensor.device)
+        input_padded = F.pad(
+            input_tensor.float().unsqueeze(0).unsqueeze(0),
+            (erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
+            mode="constant",
+            value=1.0,
+        )
+        output = F.conv2d(input_padded, structuring_element, padding=0)
+    else:
+        structuring_element = torch.ones(1, 1, erosion[0], erosion[1], erosion[2]).to(input_tensor.device)
+        input_padded = F.pad(
+            input_tensor.float().unsqueeze(0).unsqueeze(0),
+            (erosion[2] // 2, erosion[2] // 2, erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
+            mode="constant",
+            value=1.0,
+        )
+        output = F.conv3d(input_padded, structuring_element, padding=0)
 
     # Set output values based on the minimum value within the structuring element
     output = torch.where(output == torch.sum(structuring_element), 1.0, 0.0)
@@ -43,26 +52,37 @@ def erode3d(input_tensor, erosion=3):
     return output.squeeze(0).squeeze(0)
 
 
+
 def dilate3d(input_tensor, erosion=3):
+    is_2d = len(input_tensor.shape) == 2
+    dim = 2 if is_2d else 3
+    erosion = ensure_tuple_rep(erosion, dim)
+
     # Define the structuring element
-    erosion = ensure_tuple_rep(erosion, 3)
-    structuring_element = torch.ones(1, 1, erosion[0], erosion[1], erosion[2]).to(input_tensor.device)
-
-    # Pad the input tensor to handle border pixels
-    input_padded = F.pad(
-        input_tensor.float().unsqueeze(0).unsqueeze(0),
-        (erosion[0] // 2, erosion[0] // 2, erosion[1] // 2, erosion[1] // 2, erosion[2] // 2, erosion[2] // 2),
-        mode="constant",
-        value=1.0,
-    )
-
-    # Apply erosion operation
-    output = F.conv3d(input_padded, structuring_element, padding=0)
+    if is_2d:
+        structuring_element = torch.ones(1, 1, erosion[0], erosion[1]).to(input_tensor.device)
+        input_padded = F.pad(
+            input_tensor.float().unsqueeze(0).unsqueeze(0),
+            (erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
+            mode="constant",
+            value=1.0,
+        )
+        output = F.conv2d(input_padded, structuring_element, padding=0)
+    else:
+        structuring_element = torch.ones(1, 1, erosion[0], erosion[1], erosion[2]).to(input_tensor.device)
+        input_padded = F.pad(
+            input_tensor.float().unsqueeze(0).unsqueeze(0),
+            (erosion[2] // 2, erosion[2] // 2, erosion[1] // 2, erosion[1] // 2, erosion[0] // 2, erosion[0] // 2),
+            mode="constant",
+            value=1.0,
+        )
+        output = F.conv3d(input_padded, structuring_element, padding=0)
 
     # Set output values based on the minimum value within the structuring element
     output = torch.where(output > 0, 1.0, 0.0)
 
     return output.squeeze(0).squeeze(0)
+
 
 
 def augmentation_tumor_bone(pt_nda, output_size, random_seed=None):
