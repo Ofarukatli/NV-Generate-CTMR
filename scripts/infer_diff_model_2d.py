@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 
 import nibabel as nib
 import numpy as np
@@ -50,6 +51,9 @@ def infer(args):
     ])
     
     for idx, item in enumerate(data_list):
+        if item.get("fold") != 2: # Only process test fold
+            continue
+            
         cond_path = os.path.join(args_config.data_base_dir, item["label"])
         if not os.path.exists(cond_path):
             continue
@@ -97,7 +101,9 @@ def infer(args):
                     
         # Save output
         out_array = current_img.squeeze().cpu().numpy() / scale_factor
-        out_name = os.path.join(out_dir, f"inferred_{idx:04d}.nii.gz")
+        # Use original subject filename for the output
+        orig_filename = Path(item["label"]).name.replace(".nii.gz", "")
+        out_name = os.path.join(out_dir, f"{orig_filename}_inferred.nii.gz")
         
         nii_img = nib.Nifti1Image(out_array.T, np.eye(4))
         nib.save(nii_img, out_name)
