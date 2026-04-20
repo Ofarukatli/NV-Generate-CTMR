@@ -404,16 +404,21 @@ def save_checkpoint(
         args (argparse.Namespace): Configuration arguments.
     """
     unet_state_dict = unet.module.state_dict() if dist.is_initialized() else unet.state_dict()
-    torch.save(
-        {
-            "epoch": epoch + 1,
-            "loss": loss_torch_epoch,
-            "num_train_timesteps": num_train_timesteps,
-            "scale_factor": scale_factor,
-            "unet_state_dict": unet_state_dict,
-        },
-        f"{ckpt_folder}/{args.model_filename}",
-    )
+    ckpt_data = {
+        "epoch": epoch + 1,
+        "loss": loss_torch_epoch,
+        "num_train_timesteps": num_train_timesteps,
+        "scale_factor": scale_factor,
+        "unet_state_dict": unet_state_dict,
+    }
+    
+    # Save the 'latest' model (overwrites)
+    torch.save(ckpt_data, f"{ckpt_folder}/{args.model_filename}")
+    
+    # Save backup every 50 epochs
+    if (epoch + 1) % 50 == 0:
+        backup_name = args.model_filename.replace(".pt", f"_epoch_{epoch + 1}.pt")
+        torch.save(ckpt_data, f"{ckpt_folder}/{backup_name}")
 
 
 def diff_model_train(env_config_path: str, model_config_path: str, model_def_path: str, num_gpus: int, amp: bool = True) -> None:
