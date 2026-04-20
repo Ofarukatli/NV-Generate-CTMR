@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import os
+from pathlib import Path
 
 import nibabel as nib
 import numpy as np
@@ -91,7 +92,9 @@ def infer(args):
         out_array = x_t.squeeze().cpu().numpy() / scale_factor
         out_array = out_array * (t2_p99 - t2_p1) + t2_p1
         
-        out_name = os.path.join(out_dir, f"inferred_{idx:04d}.nii.gz")
+        # Use original subject filename for the output
+        orig_filename = Path(item["label"]).name.replace(".nii.gz", "")
+        out_name = os.path.join(out_dir, f"{orig_filename}_inferred.nii.gz")
         
         # Transpose back for NIfTI
         nii_img = nib.Nifti1Image(out_array.T, np.eye(4))
