@@ -7,6 +7,6 @@
     "output_dir": "./outputs",
     "output_prefix": "unet_2d",
     "trained_autoencoder_path": null,
-    "existing_ckpt_filepath": null,
+    "existing_ckpt_filepath": "./models/diff_unet_2d_t1_t2.pt",
     "modality_mapping_path": "./configs/modality_mapping.json"
 }

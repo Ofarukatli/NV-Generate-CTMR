@@ -12,8 +12,8 @@ import monai
 from monai.transforms import Compose
 from monai.networks.schedulers import RFlowScheduler, DDPMScheduler
 
-from diff_model_setting import load_config, setup_logging
-from utils import define_instance
+from .diff_model_setting import load_config, setup_logging
+from .utils import define_instance
 
 def infer(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
