@@ -134,7 +134,7 @@
         "_target_": "monai.networks.schedulers.rectified_flow.RFlowScheduler",
         "num_train_timesteps": 1000,
         "use_discrete_timesteps": false,
-        "use_timestep_transform": true,
+        "use_timestep_transform": false,
         "sample_method": "uniform",
         "scale":1.4
     },
