@@ -277,6 +277,12 @@ def train_one_epoch(
 
         _iter += 1
         images = train_data["image"].to(device)
+
+        # Skip empty slices (all black) to prevent numerical collapse
+        if images.sum() < 1e-4:
+             logger.warning(f"Empty target slice detected at epoch {epoch}, iter {_iter}. Skipping.")
+             continue
+             
         # Percentile Normalization (to 0-1)
         images = (images - t2_p1) / (t2_p99 - t2_p1 + 1e-8)
         images = torch.clamp(images, 0, 1) * scale_factor
@@ -285,6 +291,12 @@ def train_one_epoch(
         cond_image = train_data.get("label")
         if cond_image is not None:
             cond_image = cond_image.to(device)
+            
+            # Skip if condition is empty
+            if cond_image.sum() < 1e-4:
+                logger.warning(f"Empty condition slice detected at epoch {epoch}, iter {_iter}. Skipping.")
+                continue
+
             # Percentile Normalization (to 0-1)
             cond_image = (cond_image - t1_p1) / (t1_p99 - t1_p1 + 1e-8)
             cond_image = torch.clamp(cond_image, 0, 1) * scale_factor
@@ -340,8 +352,14 @@ def train_one_epoch(
 
             loss = loss_pt(model_output.float(), model_gt.float())
 
+            if torch.isnan(loss) or loss == 0:
+                logger.error(f"Loss is {loss.item()} at epoch {epoch}, iter {_iter}. Numerical collapse detected. Stopping.")
+                return torch.tensor([0.0, 0.0], device=device)
+
         if amp:
             scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(unet.parameters(), 1.0) # Gradient Clipping
             scaler.step(optimizer)
             scaler.update()
         else:

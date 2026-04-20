@@ -54,7 +54,7 @@
             32
         ],
         "num_res_blocks": 2,
-        "use_flash_attention": true,
+        "use_flash_attention": false,
         "include_top_region_index_input": false,
         "include_bottom_region_index_input": false,
         "include_spacing_input": false,
