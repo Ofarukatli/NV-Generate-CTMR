@@ -8,6 +8,7 @@ from pathlib import Path
 import nibabel as nib
 import numpy as np
 
+#python scripts/prepare_data_2d.py from_pkl --pkl "/auto/data2/ademirtas/oatli/MOTFM/data/ixi_pd_to_t2.pkl" --out_dir "./data/processed_2d/pd_t2/"
 
 def save_nifti(data: np.ndarray, filename: str):
     # For 2D, data is [1, H, W], we want [H, W] transpose for nibabel (X, Y)

@@ -1,0 +1,12 @@
+# Ignore large data and model directories on the server
+data/
+models/
+outputs/
+
+# Ignore Python environment and cache
+.venv/
+**/__pycache__/
+*.py[cod]
+
+# Ignore specific local files
+train.txtx

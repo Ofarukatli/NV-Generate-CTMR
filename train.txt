@@ -1,0 +1,8 @@
+# 1. First, create your continuous JSON dataset via our script
+python scripts/prepare_data_2d.py from_pkl --pkl "path/to/your/dataset.pkl" --out_dir "./data/processed_2d/t2_pd/"
+# 2. Start the ControlNet Model Training!
+python -m scripts.diff_model_train \
+  --env_config_path "./configs/environment_maisi_diff_model_2d.json" \
+  --model_config_path "./configs/config_maisi_diff_model_2d.json" \
+  --model_def_path "./configs/config_network_rflow_2d.json"
+
