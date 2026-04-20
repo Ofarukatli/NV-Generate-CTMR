@@ -46,7 +46,7 @@ def infer(args):
     transforms = Compose([
         monai.transforms.LoadImaged(keys=["label"]),
         monai.transforms.EnsureChannelFirstd(keys=["label"]),
-        monai.transforms.ScaleIntensityRangePercentsd(keys=["label"], lower=0, upper=100, b_min=0.0, b_max=1.0, clip=True)
+        monai.transforms.ScaleIntensityRangePercentilesd(keys=["label"], lower=0, upper=100, b_min=0.0, b_max=1.0, clip=True)
     ])
     
     for idx, item in enumerate(data_list):
